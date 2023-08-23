@@ -1,0 +1,115 @@
+##импорт необходимых библиотек
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from io import StringIO
+import plotly.express as px
+from statsmodels import robust
+from scipy import stats
+from scipy.stats import ttest_ind, mannwhitneyu, chi2_contingency
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from statsmodels.stats import power
+from sklearn.preprocessing import OrdinalEncoder
+
+#создаю название приложения
+
+st.title("Анализ :blue[БД]")
+
+#создаю виджет загрузки файлов, который принимает от пользователя только CSV файлы
+
+file = st.file_uploader("Choose a file", type=["csv"])
+if file is not None: 
+    global data_frame
+    data_frame= pd.read_csv(file)
+    st.write(data_frame)
+else:
+   st.write("К сожалению, невозможно загрузить этот файл.")
+   
+
+st.set_option('deprecation.showPyplotGlobalUse', False)
+
+#создаю список переменных.
+
+variables = data_frame.columns.tolist()
+
+#создаю виджет для переменных для выбора позователем из списка
+
+var1 = st.selectbox("Выберите переменную 1", variables)
+
+#функция описания распределения переменных.
+
+def plot_dist1(data_frame, var1):
+
+  if data_frame[var1].dtype == "object": #переменная категориальная
+    
+    fig1 = px.pie(data_frame, var1, title = f"Распределение {var1}") 
+    st.plotly_chart(fig1)
+
+  else: #переменная не категориальная
+
+    fig2 = px.histogram(data_frame, var1, text_auto='.2s', title = f"Распределение {var1}") 
+    fig2.update_layout(bargap = 0.2)
+    fig2.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
+    st.plotly_chart(fig2)
+
+plot_dist1(data_frame, var1)
+
+#тоже самое для перменной 2
+
+var2 = st.selectbox("Выберите переменную 2", variables)
+
+def plot_dist2(data_frame, var2):
+
+  if data_frame[var2].dtype == "object":
+    
+    fig3 = px.pie(data_frame, var2, title = f"Распределение {var2}")
+    st.plotly_chart(fig3)
+
+  else:
+
+    fig4 = px.histogram(data_frame, var2, text_auto='.2s', title = f"Распределение {var2}")
+    fig4.update_layout(bargap = 0.2)
+    fig4.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
+    st.plotly_chart(fig4)
+
+plot_dist2(data_frame, var2)
+
+#создаю виджет для выбора гипотез и переменных 
+
+algo = st.selectbox("Выберите алгоритм проверки гипотез:", ["t-test", "U-test", "chi-SQUARE test"])
+
+var1 = st.selectbox("выберите переменную 1:", data_frame.columns)
+var2 = st.selectbox("выберите переменную 2:", data_frame.columns)
+
+#конвертирую дата-фрейм в формат, позволяющий проверять гипотезы через нумерацию 
+
+category = data_frame.select_dtypes(['object']).columns
+data_frame[category] = data_frame[category].astype('category')
+data_frame[category] = data_frame[category].apply(lambda x: x.cat.codes)
+
+#выбранный алгоритм проверки выполняется
+
+if algo == "t-test":
+    t_stat, p_value = ttest_ind(data_frame[var1], data_frame[var2])
+    result = f'T-statistic: {t_stat:.4f}, P-value: {p_value:.4f}'
+elif algo == "U-test":
+    statistic, p_value = mannwhitneyu(data_frame[var1], data_frame[var2])
+    result = f'T-statistic: {statistic:.4f}, P-value: {p_value:.4f}'
+elif algo == "chi-SQUARE test":
+    chi2, p_value, dof, expected = chi2_contingency(pd.crosstab(data_frame[var1], data_frame[var2]))
+    result = f'Chi-square statistic: {chi2:.4f}, P-value: {p_value:.4f}, Degrees of freedom: {dof}, Expected values: {expected}'
+
+#вывод результатов проверки
+
+st.write("Алгоритм проверки гипотез:", algo)
+st.write("Результат:", result)
+
+#check if the p-value is less than 0.05. If it is, then the null hypothesis is rejected. Otherwise, the null hypothesis is not rejected.
+
+if p_value < 0.05:
+    st.write("Мы можем отвергнуть нулевую гипотезу о равенстве переменных")
+else:
+    st.write("Мы не можем отвергнуть нулевую гипотезу о равенстве переменных")
